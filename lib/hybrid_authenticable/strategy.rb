@@ -9,17 +9,18 @@ module Devise
       def authenticate!
         # resource = mapping.to.find_for_authentication(authentication_hash)
         resource = mapping.to.where("username = ?", authentication_hash[:username]).limit(1).first || mapping.to.where("email = ?", authentication_hash[:username]).limit(1).first
-        return fail(:invalid) if resource.nil? || !valid_password?
 
-        if resource.override_ldap == true
+        if resource && resource.override_ldap == true
           mapping.to.send(:extend, Devise::Models::DatabaseAuthenticatable::ClassMethods)
           mapping.to.send(:include, Devise::Models::DatabaseAuthenticatable)
 
           return fail(:invalid) unless resource.valid_password?(password)
         else
           mapping.to.send(:include, Devise::Models::LdapAuthenticatable)
+          resource = mapping.to.authenticate_with_ldap(params[scope]) unless resource
           return fail(:invalid) unless resource.valid_ldap_authentication?(password)
         end
+        return fail(:invalid) if resource.nil? || !valid_password?
 
         if validate(resource)
           success!(resource)
